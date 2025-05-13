@@ -1,0 +1,8 @@
+opencv-python
+numpy
+pandas
+scikit-learn
+tensorflow # Or pytorch, user can change this if needed
+matplotlib
+seaborn
+kagglehub 
