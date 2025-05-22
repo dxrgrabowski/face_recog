@@ -70,7 +70,7 @@ def plot_confusion_matrix(y_true, y_pred, class_names, model_name):
         if class_names:
             print(f"Warning: Provided class_names length ({len(class_names)}) does not match unique labels ({len(unique_labels)}) for {model_name}. Using numeric labels for CM.")
 
-    plt.figure(figsize=(10, 7))
+    plt.figure(figsize=(12, 12))
     try:
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=tick_labels, yticklabels=tick_labels)
     except ValueError as e:

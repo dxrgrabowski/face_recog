@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import argparse
 
 # Project-specific imports from src
 from src.data_preprocessing import (
@@ -57,34 +58,46 @@ def check_prerequisites_post_download():
     return critical_prerequisites_met # Return status based on CRITICAL prerequisites only for early exit
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Face Recognition Pipeline')
+    parser.add_argument('--skip-training', action='store_true', help='Skip training and use existing models')
+    args = parser.parse_args()
+
     print("===== Face Recognition Pipeline Started =====")
 
     ensure_results_dir()
 
     # --- Step 1: Data Download (including FaceNet model) ---
-    print("\n--- Step 1.1: Data Download (Image Dataset & FaceNet Model) ---")
-    actual_raw_data_path = download_dataset() # This downloads images and FaceNet model
-    
-    if not actual_raw_data_path or not os.path.exists(actual_raw_data_path):
-        print(f"Failed to download or locate image dataset. Expected at related to: {actual_raw_data_path}. Exiting.")
-        return
-    print("Image dataset download/location attempt finished.")
-    # FaceNet model download attempt also occurred within download_dataset()
+    if not args.skip_training:
+        print("\n--- Step 1.1: Data Download (Image Dataset & FaceNet Model) ---")
+        actual_raw_data_path = download_dataset() # This downloads images and FaceNet model
+        
+        if not actual_raw_data_path or not os.path.exists(actual_raw_data_path):
+            print(f"Failed to download or locate image dataset. Expected at related to: {actual_raw_data_path}. Exiting.")
+            return
+        print("Image dataset download/location attempt finished.")
+        # FaceNet model download attempt also occurred within download_dataset()
 
-    # --- Prerequisite Check (Post Download Attempts) ---
-    # Now check if critical files (like FaceNet model) are actually present after download attempt.
-    if not check_prerequisites_post_download():
-        print("Critical prerequisites check failed after download attempts. Exiting pipeline.")
-        return
+        # --- Prerequisite Check (Post Download Attempts) ---
+        # Now check if critical files (like FaceNet model) are actually present after download attempt.
+        if not check_prerequisites_post_download():
+            print("Critical prerequisites check failed after download attempts. Exiting pipeline.")
+            return
 
-    # --- Step 1.2: Data Preprocessing (Haar Cascade handled here) ---
-    print("\n--- Step 1.2: Image Data Preprocessing (Cropping, Resizing, Splitting) ---")
-    # preprocess_and_save_faces also handles Haar Cascade XML file availability.
-    if not preprocess_and_save_faces(raw_data_dir=actual_raw_data_path, processed_data_dir=PROCESSED_DATA_PATH, img_size=IMG_SIZE):
-        print("Data preprocessing (cropping/resizing faces) failed. Exiting.")
-        return
-    split_data(PROCESSED_DATA_PATH, TRAIN_DIR, TEST_DIR)
-    print("Data preprocessing and splitting complete.")
+        # --- Step 1.2: Data Preprocessing (Haar Cascade handled here) ---
+        print("\n--- Step 1.2: Image Data Preprocessing (Cropping, Resizing, Splitting) ---")
+        # preprocess_and_save_faces also handles Haar Cascade XML file availability.
+        if not preprocess_and_save_faces(raw_data_dir=actual_raw_data_path, processed_data_dir=PROCESSED_DATA_PATH, img_size=IMG_SIZE):
+            print("Data preprocessing (cropping/resizing faces) failed. Exiting.")
+            return
+        split_data(PROCESSED_DATA_PATH, TRAIN_DIR, TEST_DIR)
+        print("Data preprocessing and splitting complete.")
+    else:
+        print("\n--- Skipping data download and preprocessing (using existing data) ---")
+        if not os.path.exists(TRAIN_DIR) or not os.path.exists(TEST_DIR):
+            print(f"Error: Train ({TRAIN_DIR}) or Test ({TEST_DIR}) directory not found.")
+            print("Cannot skip training without existing data. Please run without --skip-training first.")
+            return
 
     print("\n--- Step 2: Loading Processed Data ---")
     X_train_cv, y_train_cv, train_person_names, train_label_map = load_data_from_processed_dir(TRAIN_DIR)
@@ -108,8 +121,20 @@ def main():
     if len(np.unique(y_train_cv)) < 2:
         print("Skipping EigenFaces: requires at least 2 classes for training.")
     else:
-        eigen_model = train_eigen_recognizer(X_train_cv, y_train_cv)
-        if eigen_model:
+        if not args.skip_training:
+            eigen_model = train_eigen_recognizer(X_train_cv, y_train_cv)
+            if eigen_model:
+                loaded_eigen_model = load_eigen_model(EIGEN_MODEL_PATH)
+                if loaded_eigen_model:
+                    y_pred_eigen = predict_eigen(loaded_eigen_model, X_test_cv)
+                    if y_pred_eigen:
+                        evaluate_model(y_test_cv, np.array(y_pred_eigen), "EigenFaces", class_names=class_names_for_plot, label_map=master_label_map)
+                else:
+                    print("Failed to load saved EigenFaces model for evaluation.")
+            else:
+                print("Failed to train EigenFaces model.")
+        else:
+            # Skip training, just load and evaluate
             loaded_eigen_model = load_eigen_model(EIGEN_MODEL_PATH)
             if loaded_eigen_model:
                 y_pred_eigen = predict_eigen(loaded_eigen_model, X_test_cv)
@@ -117,15 +142,25 @@ def main():
                     evaluate_model(y_test_cv, np.array(y_pred_eigen), "EigenFaces", class_names=class_names_for_plot, label_map=master_label_map)
             else:
                 print("Failed to load saved EigenFaces model for evaluation.")
-        else:
-            print("Failed to train EigenFaces model.")
 
     print("\n--- Step 3.2: FisherFaces ---")
     if len(np.unique(y_train_cv)) < 2:
         print("Skipping FisherFaces: requires at least 2 classes for training.")
     else:
-        fisher_model = train_fisher_recognizer(X_train_cv, y_train_cv)
-        if fisher_model:
+        if not args.skip_training:
+            fisher_model = train_fisher_recognizer(X_train_cv, y_train_cv)
+            if fisher_model:
+                loaded_fisher_model = load_fisher_model(FISHER_MODEL_PATH)
+                if loaded_fisher_model:
+                    y_pred_fisher = predict_fisher(loaded_fisher_model, X_test_cv)
+                    if y_pred_fisher:
+                        evaluate_model(y_test_cv, np.array(y_pred_fisher), "FisherFaces", class_names=class_names_for_plot, label_map=master_label_map)
+                else:
+                    print("Failed to load saved FisherFaces model for evaluation.")
+            else:
+                print("Failed to train FisherFaces model.")
+        else:
+            # Skip training, just load and evaluate
             loaded_fisher_model = load_fisher_model(FISHER_MODEL_PATH)
             if loaded_fisher_model:
                 y_pred_fisher = predict_fisher(loaded_fisher_model, X_test_cv)
@@ -133,51 +168,63 @@ def main():
                     evaluate_model(y_test_cv, np.array(y_pred_fisher), "FisherFaces", class_names=class_names_for_plot, label_map=master_label_map)
             else:
                 print("Failed to load saved FisherFaces model for evaluation.")
-        else:
-            print("Failed to train FisherFaces model.")
 
     print("\n--- Step 3.3: FaceNet ---")
-    print("\n--- Listing contents of models/ directory before FaceNet load ---")
-    models_dir = "models"
-    if os.path.exists(models_dir) and os.path.isdir(models_dir):
-        print(f"Contents of '{models_dir}': {sorted(os.listdir(models_dir))}")
-        for item_name in sorted(os.listdir(models_dir)):
-            item_path = os.path.join(models_dir, item_name)
-            try:
-                print(f"  - {item_name} (Size: {os.path.getsize(item_path)} bytes)")
-            except OSError:
-                print(f"  - {item_name} (Error getting size)")
-    else:
-        print(f"Directory '{models_dir}' does not exist or is not a directory.")
-    print("----------------------------------------------------------------")
-    
-    facenet_keras_model = load_facenet_keras_model()
-    if not facenet_keras_model:
-        print("FaceNet Keras model could not be loaded. Skipping FaceNet training and evaluation.")
-    elif X_train_fn.size == 0 or y_train_fn.size == 0:
-        print("Skipping FaceNet: No training data loaded.")
-    elif len(np.unique(y_train_fn)) < 1:
-        print("Skipping FaceNet: Requires at least 1 class for SVM training (though >1 is meaningful).")
-    else:
-        print("Generating FaceNet training embeddings...")
-        train_embeddings = generate_embeddings(facenet_keras_model, X_train_fn)
-        
-        if train_embeddings.size > 0:
-            facenet_classifier_tuple = train_facenet_classifier(train_embeddings, y_train_fn, FACENET_CLASSIFIER_PATH)
-            
-            if facenet_classifier_tuple and facenet_classifier_tuple[0]:
-                loaded_classifier_tuple = load_facenet_classifier(FACENET_CLASSIFIER_PATH)
-                if loaded_classifier_tuple and loaded_classifier_tuple[0]:
-                    y_pred_facenet_encoded = predict_facenet(facenet_keras_model, loaded_classifier_tuple, X_test_fn)
-                    
-                    if y_pred_facenet_encoded:
-                        evaluate_model(y_test_fn, np.array(y_pred_facenet_encoded), "FaceNet_SVM", class_names=class_names_for_plot, label_map=master_label_map)
-                else:
-                    print("Failed to load saved FaceNet classifier for evaluation.")
-            else:
-                print("Failed to train FaceNet classifier.")
+    if not args.skip_training:
+        print("\n--- Listing contents of models/ directory before FaceNet load ---")
+        models_dir = "models"
+        if os.path.exists(models_dir) and os.path.isdir(models_dir):
+            print(f"Contents of '{models_dir}': {sorted(os.listdir(models_dir))}")
+            for item_name in sorted(os.listdir(models_dir)):
+                item_path = os.path.join(models_dir, item_name)
+                try:
+                    print(f"  - {item_name} (Size: {os.path.getsize(item_path)} bytes)")
+                except OSError:
+                    print(f"  - {item_name} (Error getting size)")
         else:
-            print("Failed to generate FaceNet training embeddings.")
+            print(f"Directory '{models_dir}' does not exist or is not a directory.")
+        print("----------------------------------------------------------------")
+        
+        facenet_keras_model = load_facenet_keras_model()
+        if not facenet_keras_model:
+            print("FaceNet Keras model could not be loaded. Skipping FaceNet training and evaluation.")
+        elif X_train_fn.size == 0 or y_train_fn.size == 0:
+            print("Skipping FaceNet: No training data loaded.")
+        elif len(np.unique(y_train_fn)) < 1:
+            print("Skipping FaceNet: Requires at least 1 class for SVM training (though >1 is meaningful).")
+        else:
+            print("Generating FaceNet training embeddings...")
+            train_embeddings = generate_embeddings(facenet_keras_model, X_train_fn)
+            
+            if train_embeddings.size > 0:
+                facenet_classifier_tuple = train_facenet_classifier(train_embeddings, y_train_fn, FACENET_CLASSIFIER_PATH)
+                
+                if facenet_classifier_tuple and facenet_classifier_tuple[0]:
+                    loaded_classifier_tuple = load_facenet_classifier(FACENET_CLASSIFIER_PATH)
+                    if loaded_classifier_tuple and loaded_classifier_tuple[0]:
+                        y_pred_facenet_encoded = predict_facenet(facenet_keras_model, loaded_classifier_tuple, X_test_fn)
+                        
+                        if y_pred_facenet_encoded:
+                            evaluate_model(y_test_fn, np.array(y_pred_facenet_encoded), "FaceNet_SVM", class_names=class_names_for_plot, label_map=master_label_map)
+                    else:
+                        print("Failed to load saved FaceNet classifier for evaluation.")
+                else:
+                    print("Failed to train FaceNet classifier.")
+            else:
+                print("Failed to generate FaceNet training embeddings.")
+    else:
+        # Skip training, just load and evaluate
+        facenet_keras_model = load_facenet_keras_model()
+        if facenet_keras_model:
+            loaded_classifier_tuple = load_facenet_classifier(FACENET_CLASSIFIER_PATH)
+            if loaded_classifier_tuple and loaded_classifier_tuple[0]:
+                y_pred_facenet_encoded = predict_facenet(facenet_keras_model, loaded_classifier_tuple, X_test_fn)
+                if y_pred_facenet_encoded:
+                    evaluate_model(y_test_fn, np.array(y_pred_facenet_encoded), "FaceNet_SVM", class_names=class_names_for_plot, label_map=master_label_map)
+            else:
+                print("Failed to load saved FaceNet classifier for evaluation.")
+        else:
+            print("FaceNet Keras model could not be loaded. Skipping FaceNet evaluation.")
 
     print("\n--- Step 4: Generating Overall Metrics Comparison Plot ---")
     plot_overall_metrics_comparison()
