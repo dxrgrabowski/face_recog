@@ -1,6 +1,94 @@
 # Face Recognition System
 
-This project implements a face recognition system using various algorithms including FaceNet, Fisher Faces, and Eigen Faces. The system includes face detection, preprocessing, and recognition capabilities.
+This project implements multiple face recognition algorithms (EigenFaces, FisherFaces, and FaceNet) and compares their performance on a dataset of celebrity faces.
+
+## Features
+
+- Multiple face recognition algorithms:
+  - EigenFaces (OpenCV implementation)
+  - FisherFaces (OpenCV implementation)
+  - FaceNet (Deep learning-based)
+- Face detection using Haar Cascade
+- Data preprocessing and augmentation
+- Model evaluation and comparison
+- Support for skipping training and using existing models
+
+## Requirements
+
+```bash
+pip install -r requirements.txt
+```
+
+Key dependencies:
+- opencv-contrib-python (for EigenFaces and FisherFaces)
+- tensorflow (for FaceNet)
+- scikit-learn (for SVM classifier in FaceNet)
+- kagglehub (for dataset and model download)
+
+## Usage
+
+### Full Pipeline (Download, Preprocess, Train, Evaluate)
+
+```bash
+python3 -m src.main
+```
+
+### Skip Training (Use Existing Models)
+
+```bash
+python3 -m src.main --skip-training
+```
+
+## Current Results
+
+The system has been tested on a dataset of 31 different people with the following results:
+
+- EigenFaces: 35.87% accuracy
+- FisherFaces: 20.29% accuracy
+- FaceNet: Currently not working (model loading issues)
+
+Note: These results are lower than typical research results (EigenFaces: 76%, FisherFaces: 88%) due to:
+- Larger number of classes (31 people)
+- More challenging dataset conditions
+- Different preprocessing steps
+
+## Project Structure
+
+```
+.
+├── data/
+│   ├── processed/    # Preprocessed face images
+│   ├── train/        # Training set
+│   └── test/         # Test set
+├── models/           # Saved models
+├── results/          # Evaluation results and plots
+└── src/
+    ├── data_preprocessing.py
+    ├── face_detection.py
+    ├── recognition_eigen.py
+    ├── recognition_fisher.py
+    ├── recognition_facenet.py
+    ├── evaluation.py
+    └── main.py
+```
+
+## Known Issues
+
+1. FaceNet model loading issues:
+   - The current FaceNet model files from Kaggle appear to be corrupted
+   - Need to download a valid model from a trusted source
+
+2. Performance:
+   - Current accuracy is lower than research results
+   - Potential improvements:
+     - Better preprocessing
+     - Data augmentation
+     - Parameter tuning
+     - Using a different FaceNet model
+
+## Contributing
+
+Feel free to submit issues and enhancement requests!
 
 ## Prerequisites
 
