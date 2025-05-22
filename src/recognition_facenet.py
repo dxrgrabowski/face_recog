@@ -35,7 +35,7 @@ def load_facenet_keras_model(): # Removed model_path default argument to control
             model.load_weights(FACENET_WEIGHTS_PATH)
             print("FaceNet model loaded successfully from JSON architecture and H5 weights.")
         except Exception as e:
-            print(f"Failed to load model from JSON/weights. Exception type: {type(e)}, Details: {repr(e)}") # Enhanced error print
+            print(f"Failed to load model from JSON/weights. Exception type: {type(e)}") # Enhanced error print
             model = None # Ensure model is None if this attempt fails
     else:
         print(f"Strategy 1: JSON architecture ({FACENET_ARCH_PATH}) or weights ({FACENET_WEIGHTS_PATH}) not found.")

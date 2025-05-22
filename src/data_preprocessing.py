@@ -194,46 +194,66 @@ def preprocess_and_save_faces(raw_data_dir, processed_data_dir, img_size=(160, 1
         shutil.rmtree(processed_data_dir)
     os.makedirs(processed_data_dir, exist_ok=True)
 
-    person_folders = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d))]
-    
-    for person_name in person_folders:
-        person_raw_path = os.path.join(raw_data_dir, person_name)
+    # Get all jpg files from the raw data directory
+    image_files = []
+    for root, _, files in os.walk(raw_data_dir):
+        for file in files:
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                image_files.append(os.path.join(root, file))
+
+    # Process each image and organize by person
+    person_processed_count = {}
+    total_processed = 0
+
+    for img_path in image_files:
+        # Extract person name from filename (format: "Person Name_Number.jpg")
+        person_name = os.path.basename(img_path).split('_')[0]
+        
+        # Create person's directory if it doesn't exist
         person_processed_path = os.path.join(processed_data_dir, person_name)
         os.makedirs(person_processed_path, exist_ok=True)
+
+        # Read and process image
+        image = cv2.imread(img_path)
+        if image is None:
+            print(f"Warning: Could not read image {img_path}")
+            continue
+
+        faces = detect_faces(img_path, CASCADE_PATH)
+        if faces is None:  # Critical error with cascade
+            print(f"Critical error: Face detection failed for {img_path} due to cascade issues. Skipping further processing.")
+            return False
         
-        processed_count = 0
-        for img_name in os.listdir(person_raw_path):
-            if img_name.lower().endswith(('.png', '.jpg', '.jpeg')):
-                img_path = os.path.join(person_raw_path, img_name)
-                image = cv2.imread(img_path)
-                if image is None:
-                    print(f"Warning: Could not read image {img_path}")
-                    continue
-
-                faces = detect_faces(img_path, CASCADE_PATH)
-                if faces is None: # Critical error with cascade
-                    print(f"Critical error: Face detection failed for {img_path} due to cascade issues. Skipping further processing.")
-                    return False
+        if len(faces) > 0:
+            largest_face = get_largest_face(faces)
+            if largest_face is not None:
+                x, y, w, h = largest_face
+                face_crop = image[y:y+h, x:x+w]
                 
-                if len(faces) > 0:
-                    largest_face = get_largest_face(faces)
-                    if largest_face is not None:
-                        x, y, w, h = largest_face
-                        face_crop = image[y:y+h, x:x+w]
-                        
-                        if face_crop.size == 0:
-                            print(f"Warning: Cropped face from {img_path} is empty. Original face coords: {largest_face}")
-                            continue
-
-                        face_resized = cv2.resize(face_crop, img_size)
-                        
-                        save_path = os.path.join(person_processed_path, img_name)
-                        cv2.imwrite(save_path, face_resized)
-                        processed_count += 1
-                else:
-                    # print(f"No face detected in {img_path}")
+                if face_crop.size == 0:
+                    print(f"Warning: Cropped face from {img_path} is empty. Original face coords: {largest_face}")
                     continue
-        print(f"Processed {processed_count} images for {person_name}")
+
+                face_resized = cv2.resize(face_crop, img_size)
+                
+                # Save processed face
+                save_path = os.path.join(person_processed_path, os.path.basename(img_path))
+                cv2.imwrite(save_path, face_resized)
+                
+                # Update counters
+                person_processed_count[person_name] = person_processed_count.get(person_name, 0) + 1
+                total_processed += 1
+
+    # Print processing summary
+    print("\nProcessing Summary:")
+    for person, count in person_processed_count.items():
+        print(f"Processed {count} images for {person}")
+    print(f"Total processed images: {total_processed}")
+
+    if total_processed == 0:
+        print("Error: No images were successfully processed.")
+        return False
+
     print("Face preprocessing complete.")
     return True
 
